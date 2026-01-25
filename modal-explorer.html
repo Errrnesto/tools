@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Chord & Scale Explorer</title>
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-8XQLL5N022"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-8XQLL5N022');
+    </script>
+    
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const Play = ({ size = 24, ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+        );
+
+        const Square = ({ size = 24, ...props }) => (
+            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            </svg>
+        );
+
+        const MODES = ['Ionian', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Aeolian', 'Locrian'];
+        const KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        const MODE_INTERVALS = {
+          'Ionian': [0, 2, 4, 5, 7, 9, 11],
+          'Dorian': [0, 2, 3, 5, 7, 9, 10],
+          'Phrygian': [0, 1, 3, 5, 7, 8, 10],
+          'Lydian': [0, 2, 4, 6, 7, 9, 11],
+          'Mixolydian': [0, 2, 4, 5, 7, 9, 10],
+          'Aeolian': [0, 2, 3, 5, 7, 8, 10],
+          'Locrian': [0, 1, 3, 5, 6, 8, 10]
+        };
+
+        const CHORD_FORMULAS = {
+          'maj': { intervals: [0, 4, 7], category: 'Triads' },
+          'min': { intervals: [0, 3, 7], category: 'Triads' },
+          'dim': { intervals: [0, 3, 6], category: 'Triads' },
+          'aug': { intervals: [0, 4, 8], category: 'Triads' },
+          'sus2': { intervals: [0, 2, 7], category: 'Triads' },
+          'sus4': { intervals: [0, 5, 7], category: 'Triads' },
+          '7': { intervals: [0, 4, 7, 10], category: 'Sevenths' },
+          'maj7': { intervals: [0, 4, 7, 11], category: 'Sevenths' },
+          'min7': { intervals: [0, 3, 7, 10], category: 'Sevenths' },
+          'minMaj7': { intervals: [0, 3, 7, 11], category: 'Sevenths' },
+          'm7b5': { intervals: [0, 3, 6, 10], category: 'Sevenths' },
+          'dim7': { intervals: [0, 3, 6, 9], category: 'Sevenths' },
+          'aug7': { intervals: [0, 4, 8, 10], category: 'Sevenths' },
+          'augMaj7': { intervals: [0, 4, 8, 11], category: 'Sevenths' },
+          '6': { intervals: [0, 4, 7, 9], category: 'Sixths' },
+          'min6': { intervals: [0, 3, 7, 9], category: 'Sixths' },
+          'add2': { intervals: [0, 2, 4, 7], category: 'Added Tone' },
+          'add9': { intervals: [0, 4, 7, 14], category: 'Added Tone' },
+          'minadd9': { intervals: [0, 3, 7, 14], category: 'Added Tone' },
+          '9': { intervals: [0, 4, 7, 10, 14], category: 'Extended' },
+          'maj9': { intervals: [0, 4, 7, 11, 14], category: 'Extended' },
+          'min9': { intervals: [0, 3, 7, 10, 14], category: 'Extended' },
+          '7b9': { intervals: [0, 4, 7, 10, 13], category: 'Extended' },
+          '7#9': { intervals: [0, 4, 7, 10, 15], category: 'Extended' },
+          '11': { intervals: [0, 4, 7, 10, 14, 17], category: 'Extended' },
+          'min11': { intervals: [0, 3, 7, 10, 14, 17], category: 'Extended' },
+          '7#11': { intervals: [0, 4, 7, 10, 18], category: 'Extended' },
+          '13': { intervals: [0, 4, 7, 10, 14, 21], category: 'Extended' },
+          'maj13': { intervals: [0, 4, 7, 11, 14, 21], category: 'Extended' },
+          'min13': { intervals: [0, 3, 7, 10, 14, 21], category: 'Extended' }
+        };
+
+        const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+        const INSTRUMENTS = {
+          'Guitar': [40, 45, 50, 55, 59, 64],
+          'Bass (4-string)': [28, 33, 38, 43],
+          'Bass (5-string)': [23, 28, 33, 38, 43],
+          'Bass VI': [28, 33, 38, 43, 47, 52],
+          'Violin': [55, 62, 69, 76],
+          'Piano': null
+        };
+
+        const GUITAR_TUNINGS = {
+          'Standard (EADGBE)': [40, 45, 50, 55, 59, 64],
+          'Drop D (DADGBE)': [38, 45, 50, 55, 59, 64],
+          'Drop C (CGCFAD)': [36, 43, 48, 53, 57, 62],
+          'Drop B (BF#BEAD)': [35, 42, 47, 52, 57, 62],
+          'DADGAD': [38, 45, 50, 55, 57, 62],
+          'Open D (DADF#AD)': [38, 45, 50, 54, 57, 62],
+          'Open G (DGDGBD)': [38, 43, 50, 55, 59, 62],
+          'Open E (EBEG#BE)': [40, 47, 52, 56, 59, 64],
+          'Open A (EAEAC#E)': [40, 45, 52, 57, 61, 64],
+          'Open C (CGCGCE)': [36, 43, 48, 55, 60, 64],
+          'Half Step Down': [39, 44, 49, 54, 58, 63],
+          'Whole Step Down': [38, 43, 48, 53, 57, 62],
+          'Eb Standard': [39, 44, 49, 54, 58, 63],
+          'D Standard': [38, 43, 48, 53, 57, 62],
+          'C# Standard': [37, 42, 47, 52, 56, 61],
+          'C Standard': [36, 41, 46, 51, 55, 60],
+          'All Fourths (EADGCF)': [40, 45, 50, 55, 60, 65],
+          'New Standard (CGDAEG)': [36, 43, 50, 57, 64, 71]
+        };
+
+        const BASS_TUNINGS = {
+          'Standard (EADG)': [28, 33, 38, 43],
+          'Drop D (DADG)': [26, 33, 38, 43],
+          'Drop C (CADG)': [24, 33, 38, 43],
+          'Half Step Down': [27, 32, 37, 42],
+          'Whole Step Down': [26, 31, 36, 41],
+          'Tenor (ADGC)': [33, 38, 43, 48]
+        };
+
+        const BASS5_TUNINGS = {
+          'Standard (BEADG)': [23, 28, 33, 38, 43],
+          'Drop A (AEADG)': [21, 28, 33, 38, 43],
+          'High C (EADGC)': [28, 33, 38, 43, 48],
+          'Tenor (ADGCF)': [33, 38, 43, 48, 53]
+        };
+
+        const BASS6_TUNINGS = {
+          'Standard (EADGBE)': [28, 33, 38, 43, 47, 52],
+          'Drop D (DADGBE)': [26, 33, 38, 43, 47, 52],
+          'Baritone (BEADF#B)': [23, 28, 33, 38, 42, 47]
+        };
+
+        const VIOLIN_TUNINGS = {
+          'Standard (GDAE)': [55, 62, 69, 76],
+          'Cajun (GDAD)': [55, 62, 69, 74],
+          'Open G (GDGD)': [55, 62, 67, 74]
+        };
+
+        const PROGRESSIONS = {
+          'Ionian': [
+            { name: 'I-IV-V', degrees: [1, 4, 5], style: 'Classic Rock', curated: true },
+            { name: 'I-V-vi-IV', degrees: [1, 5, 6, 4], style: 'Pop', curated: true },
+            { name: 'ii-V-I', degrees: [2, 5, 1], style: 'Jazz', curated: true },
+            { name: 'I-vi-ii-V', degrees: [1, 6, 2, 5], style: '50s Progression', curated: true },
+            { name: 'I-IV-I-V', degrees: [1, 4, 1, 5], style: 'Blues Rock', curated: true },
+            { name: 'vi-IV-I-V', degrees: [6, 4, 1, 5], style: 'Modern Pop', curated: true },
+            { name: 'I-iii-IV-V', degrees: [1, 3, 4, 5], style: 'Classic', curated: true },
+            { name: 'IV-V-iii-vi', degrees: [4, 5, 3, 6], style: 'Circle', curated: true }
+          ],
+          'Dorian': [
+            { name: 'i-IV', degrees: [1, 4], style: 'Modal Rock', curated: true },
+            { name: 'i-ii-IV', degrees: [1, 2, 4], style: 'Dorian Groove', curated: true },
+            { name: 'i-IV-v', degrees: [1, 4, 5], style: 'Minor Blues', curated: true },
+            { name: 'i-bVII-IV', degrees: [1, 7, 4], style: 'Funky', curated: true },
+            { name: 'ii-i', degrees: [2, 1], style: 'Suspension', curated: true },
+            { name: 'i-ii-bVII-IV', degrees: [1, 2, 7, 4], style: 'Extended', curated: true }
+          ],
+          'Phrygian': [
+            { name: 'i-bII', degrees: [1, 2], style: 'Spanish/Metal', curated: true },
+            { name: 'i-bII-bVII', degrees: [1, 2, 7], style: 'Flamenco', curated: true },
+            { name: 'i-bII-i-bVII', degrees: [1, 2, 1, 7], style: 'Dark Metal', curated: true },
+            { name: 'bII-i', degrees: [2, 1], style: 'Reverse', curated: true },
+            { name: 'i-bvii-bVI-bII', degrees: [1, 7, 6, 2], style: 'Descending', curated: true },
+            { name: 'i-bII-bIII', degrees: [1, 2, 3], style: 'Chromatic', curated: true }
+          ],
+          'Lydian': [
+            { name: 'I-II', degrees: [1, 2], style: 'Bright/Dreamy', curated: true },
+            { name: 'I-II-IV', degrees: [1, 2, 4], style: 'Floating', curated: true },
+            { name: 'I-II-vii', degrees: [1, 2, 7], style: 'Lydian Character', curated: true },
+            { name: 'IV-I-II', degrees: [4, 1, 2], style: 'Film Score', curated: true },
+            { name: 'I-II-I-vii', degrees: [1, 2, 1, 7], style: 'Uplifting', curated: true },
+            { name: 'II-I', degrees: [2, 1], style: 'Resolve', curated: true }
+          ],
+          'Mixolydian': [
+            { name: 'I-bVII-IV', degrees: [1, 7, 4], style: 'Classic Rock', curated: true },
+            { name: 'I-bVII', degrees: [1, 7], style: 'Power Chords', curated: true },
+            { name: 'I-bVII-IV-I', degrees: [1, 7, 4, 1], style: 'Rock Staple', curated: true },
+            { name: 'v-IV-I', degrees: [5, 4, 1], style: 'Blues', curated: true },
+            { name: 'I-IV-bVII', degrees: [1, 4, 7], style: 'Shuffle', curated: true },
+            { name: 'I-bVII-vi-V', degrees: [1, 7, 6, 5], style: 'Extended', curated: true }
+          ],
+          'Aeolian': [
+            { name: 'i-VI-VII', degrees: [1, 6, 7], style: 'Minor Rock', curated: true },
+            { name: 'i-iv-v', degrees: [1, 4, 5], style: 'Natural Minor', curated: true },
+            { name: 'i-bVII-bVI-bVII', degrees: [1, 7, 6, 7], style: 'Emotional', curated: true },
+            { name: 'i-bVI-bIII-bVII', degrees: [1, 6, 3, 7], style: 'Epic', curated: true },
+            { name: 'i-v-bVI-iv', degrees: [1, 5, 6, 4], style: 'Melancholic', curated: true },
+            { name: 'i-bIII-bVII-iv', degrees: [1, 3, 7, 4], style: 'Aeolian Cadence', curated: true },
+            { name: 'i-iv-bVII-bVI', degrees: [1, 4, 7, 6], style: 'Descending', curated: true }
+          ],
+          'Locrian': [
+            { name: 'i-bII', degrees: [1, 2], style: 'Unstable', curated: true },
+            { name: 'i-bV', degrees: [1, 5], style: 'Dissonant', curated: true },
+            { name: 'bII-i', degrees: [2, 1], style: 'Dark Resolve', curated: true },
+            { name: 'i-bII-bIII', degrees: [1, 2, 3], style: 'Chromatic Descent', curated: true },
+            { name: 'i-bV-bII', degrees: [1, 5, 2], style: 'Tritone', curated: true }
+          ]
+        };
+
+        function generateProgressions(scaleNotes) {
+          const generated = [];
+          const numDegrees = scaleNotes.length;
+          
+          for (let i = 1; i <= numDegrees; i++) {
+            for (let j = 1; j <= numDegrees; j++) {
+              if (i !== j) {
+                const interval = Math.abs(j - i);
+                if (interval === 1 || interval === 4 || interval === 5) {
+                  generated.push({
+                    name: `${i}-${j}`,
+                    degrees: [i, j],
+                    style: 'Generated',
+                    curated: false
+                  });
+                }
+              }
+            }
+          }
+          
+          for (let i = 1; i <= numDegrees; i++) {
+            if (i + 2 <= numDegrees) {
+              generated.push({
+                name: `${i}-${i+1}-${i+2}`,
+                degrees: [i, i+1, i+2],
+                style: 'Ascending',
+                curated: false
+              });
+            }
+            if (i - 2 >= 1) {
+              generated.push({
+                name: `${i}-${i-1}-${i-2}`,
+                degrees: [i, i-1, i-2],
+                style: 'Descending',
+                curated: false
+              });
+            }
+            const second = ((i + 3) % numDegrees) || numDegrees;
+            const third = ((second + 3) % numDegrees) || numDegrees;
+            generated.push({
+              name: `${i}-${second}-${third}`,
+              degrees: [i, second, third],
+              style: 'Circle Pattern',
+              curated: false
+            });
+          }
+          
+          for (let i = 1; i <= numDegrees; i++) {
+            const fourth = ((i + 3) % numDegrees) || numDegrees;
+            const fifth = ((i + 4) % numDegrees) || numDegrees;
+            generated.push({
+              name: `${i}-${fourth}-${fifth}-${i}`,
+              degrees: [i, fourth, fifth, i],
+              style: 'Return Pattern',
+              curated: false
+            });
+          }
+          
+          return generated;
+        }
+
+        function getNoteFromSemitone(rootIndex, semitone) {
+          return NOTE_NAMES[(rootIndex + semitone) % 12];
+        }
+
+        function getScaleNotes(key, mode) {
+          const rootIndex = NOTE_NAMES.indexOf(key);
+          const intervals = MODE_INTERVALS[mode];
+          return intervals.map(interval => getNoteFromSemitone(rootIndex, interval));
+        }
+
+        function findChords(scaleNotes) {
+          const chords = [];
+          
+          scaleNotes.forEach((root, degreeIndex) => {
+            const rootNoteIndex = NOTE_NAMES.indexOf(root);
+            
+            Object.entries(CHORD_FORMULAS).forEach(([chordType, data]) => {
+              const chordNotes = data.intervals.map(interval => 
+                getNoteFromSemitone(rootNoteIndex, interval % 12)
+              );
+              
+              const inScale = chordNotes.every(note => scaleNotes.includes(note));
+              
+              if (inScale) {
+                chords.push({
+                  root,
+                  type: chordType,
+                  name: `${root}${chordType}`,
+                  degree: degreeIndex + 1,
+                  notes: chordNotes,
+                  category: data.category,
+                  intervals: data.intervals
+                });
+              }
+            });
+          });
+          
+          return chords;
+        }
+
+        function Fretboard({ tuning, scaleNotes, selectedChord, selectedRootFilter, onNoteClick }) {
+          const frets = 24;
+          const chordNotes = selectedChord?.notes || [];
+          const reversedTuning = [...tuning].reverse();
+          
+          return (
+            <div className="bg-gray-900 p-3 rounded border border-gray-700 overflow-x-auto">
+              {reversedTuning.map((stringMidi, stringIndex) => (
+                <div key={stringIndex} className="flex items-center mb-1">
+                  <div className="w-8 text-xs text-gray-500">
+                    {NOTE_NAMES[stringMidi % 12]}
+                  </div>
+                  <div className="flex flex-1">
+                    {[...Array(frets + 1)].map((_, fret) => {
+                      const midi = stringMidi + fret;
+                      const note = NOTE_NAMES[midi % 12];
+                      const isInScale = scaleNotes.includes(note);
+                      const isRoot = note === scaleNotes[0];
+                      const isInChord = chordNotes.includes(note);
+                      const isSelectedRoot = selectedRootFilter === note;
+                      
+                      return (
+                        <div
+                          key={fret}
+                          onClick={() => isInScale && onNoteClick(note)}
+                          className={`w-7 h-6 border-r border-gray-700 flex items-center justify-center text-xs flex-shrink-0
+                            ${isInScale ? 'cursor-pointer hover:opacity-80' : ''}
+                            ${isSelectedRoot ? 'ring-2 ring-yellow-400 ring-inset' : ''}
+                            ${isRoot && isInChord ? 'bg-pink-600 text-white font-bold' : ''}
+                            ${isRoot && !isInChord ? 'bg-pink-800 text-white font-bold' : ''}
+                            ${isInChord && !isRoot ? 'bg-purple-600 text-white font-bold' : ''}
+                            ${isInScale && !isInChord && !isRoot ? 'bg-purple-900 text-purple-400' : ''}
+                            ${!isInScale ? 'text-gray-700' : ''}
+                          `}
+                        >
+                          {(isInScale || isInChord) && note}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        function PianoRoll({ scaleNotes, selectedChord, selectedRootFilter, onNoteClick }) {
+          const octaves = 2;
+          const startOctave = 3;
+          const chordNotes = selectedChord?.notes || [];
+          
+          const keys = [];
+          for (let octave = startOctave; octave < startOctave + octaves; octave++) {
+            NOTE_NAMES.forEach((note, index) => {
+              const isBlack = note.includes('#');
+              const isInScale = scaleNotes.includes(note);
+              const isRoot = note === scaleNotes[0];
+              const isInChord = chordNotes.includes(note);
+              const isSelectedRoot = selectedRootFilter === note;
+              
+              keys.push({ note, octave, isBlack, isInScale, isRoot, isInChord, isSelectedRoot });
+            });
+          }
+          
+          return (
+            <div className="flex bg-gray-900 p-4 rounded border border-gray-700 overflow-x-auto">
+              {keys.map((key, i) => (
+                key.isBlack ? (
+                  <div
+                    key={i}
+                    onClick={() => key.isInScale && onNoteClick(key.note)}
+                    className={`w-6 h-20 border border-gray-600 -mx-3 z-10 relative
+                      ${key.isInScale ? 'cursor-pointer hover:opacity-80' : ''}
+                      ${key.isSelectedRoot ? 'ring-2 ring-yellow-400 ring-inset' : ''}
+                      ${key.isRoot && key.isInChord ? 'bg-pink-600' : ''}
+                      ${key.isInChord && !key.isRoot ? 'bg-purple-600' : ''}
+                      ${key.isInScale && !key.isInChord ? 'bg-purple-900' : ''}
+                      ${!key.isInScale && !key.isInChord ? 'bg-gray-800' : ''}
+                    `}
+                  />
+                ) : (
+                  <div
+                    key={i}
+                    onClick={() => key.isInScale && onNoteClick(key.note)}
+                    className={`w-8 h-32 border border-gray-600
+                      ${key.isInScale ? 'cursor-pointer hover:opacity-80' : ''}
+                      ${key.isSelectedRoot ? 'ring-4 ring-yellow-400 ring-inset' : ''}
+                      ${key.isRoot && key.isInChord ? 'bg-pink-400' : ''}
+                      ${key.isInChord && !key.isRoot ? 'bg-purple-400' : ''}
+                      ${key.isInScale && !key.isInChord ? 'bg-purple-200' : ''}
+                      ${!key.isInScale && !key.isInChord ? 'bg-white' : ''}
+                    `}
+                  />
+                )
+              ))}
+            </div>
+          );
+        }
+
+        function ModalChordExplorer() {
+          const [selectedKey, setSelectedKey] = useState('C');
+          const [selectedMode, setSelectedMode] = useState('Ionian');
+          const [customScale, setCustomScale] = useState('');
+          const [isCustomMode, setIsCustomMode] = useState(false);
+          const [selectedInstrument, setSelectedInstrument] = useState('Guitar');
+          const [selectedTuning, setSelectedTuning] = useState('Standard (EADGBE)');
+          const [selectedChord, setSelectedChord] = useState(null);
+          const [selectedRootFilter, setSelectedRootFilter] = useState(null);
+          const [filterCategory, setFilterCategory] = useState('All');
+          const [progressionFilter, setProgressionFilter] = useState('curated');
+          const [selectedProgression, setSelectedProgression] = useState(null);
+          const [editingProgression, setEditingProgression] = useState(null);
+          const [chordDuration, setChordDuration] = useState(1000);
+          const [progressionPlayMode, setProgressionPlayMode] = useState('block');
+          const [isLooping, setIsLooping] = useState(false);
+          const [loopTimeoutId, setLoopTimeoutId] = useState(null);
+          const [audioContext, setAudioContext] = useState(null);
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [arpeggioSpeed, setArpeggioSpeed] = useState(300);
+
+          const scaleNotes = isCustomMode && customScale
+            ? customScale.split(',').map(n => n.trim()).filter(n => NOTE_NAMES.includes(n))
+            : getScaleNotes(selectedKey, selectedMode);
+          
+          const allChords = findChords(scaleNotes);
+          
+          const rootFilteredChords = selectedRootFilter 
+            ? allChords.filter(c => c.root === selectedRootFilter)
+            : allChords;
+          
+          const chords = filterCategory === 'All' 
+            ? rootFilteredChords 
+            : rootFilteredChords.filter(c => c.category === filterCategory);
+          
+          const curatedProgressions = PROGRESSIONS[selectedMode] || [];
+          const generatedProgressions = !isCustomMode ? generateProgressions(scaleNotes) : [];
+          const allProgressions = [...curatedProgressions, ...generatedProgressions];
+          const progressions = progressionFilter === 'curated' ? curatedProgressions : allProgressions;
+          
+          const categories = ['All', ...new Set(allChords.map(c => c.category))];
+
+          const getAvailableTunings = () => {
+            switch(selectedInstrument) {
+              case 'Guitar': return GUITAR_TUNINGS;
+              case 'Bass (4-string)': return BASS_TUNINGS;
+              case 'Bass (5-string)': return BASS5_TUNINGS;
+              case 'Bass VI': return BASS6_TUNINGS;
+              case 'Violin': return VIOLIN_TUNINGS;
+              default: return {};
+            }
+          };
+
+          const getCurrentTuning = () => {
+            if (selectedInstrument === 'Piano') return null;
+            const tunings = getAvailableTunings();
+            return tunings[selectedTuning] || INSTRUMENTS[selectedInstrument];
+          };
+
+          const handleInstrumentChange = (instrument) => {
+            setSelectedInstrument(instrument);
+            const tunings = (() => {
+              switch(instrument) {
+                case 'Guitar': return GUITAR_TUNINGS;
+                case 'Bass (4-string)': return BASS_TUNINGS;
+                case 'Bass (5-string)': return BASS5_TUNINGS;
+                case 'Bass VI': return BASS6_TUNINGS;
+                case 'Violin': return VIOLIN_TUNINGS;
+                default: return {};
+              }
+            })();
+            const firstTuning = Object.keys(tunings)[0];
+            if (firstTuning) setSelectedTuning(firstTuning);
+          };
+
+          const handleNoteClick = (note) => {
+            if (selectedRootFilter === note) {
+              setSelectedRootFilter(null);
+            } else {
+              setSelectedRootFilter(note);
+            }
+          };
+
+          const playScale = () => {
+            if (!audioContext) {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              setAudioContext(ctx);
+              playScaleWithContext(ctx, scaleNotes, arpeggioSpeed);
+            } else {
+              playScaleWithContext(audioContext, scaleNotes, arpeggioSpeed);
+            }
+          };
+
+          const playScaleWithContext = (ctx, notes, speed) => {
+            setIsPlaying(true);
+            const now = ctx.currentTime;
+            const speedInSeconds = speed / 1000;
+            
+            const tuning = getCurrentTuning();
+            const baseMidi = tuning ? tuning[0] : 48;
+            const baseOctave = Math.floor(baseMidi / 12);
+            
+            notes.forEach((note, index) => {
+              const noteIndex = NOTE_NAMES.indexOf(note);
+              const midi = (baseOctave + 2) * 12 + noteIndex;
+              const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+              const startTime = now + (index * speedInSeconds);
+              
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(frequency, startTime);
+              
+              gain.gain.setValueAtTime(0.2, startTime);
+              gain.gain.exponentialRampToValueAtTime(0.01, startTime + speedInSeconds * 0.8);
+              
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              
+              osc.start(startTime);
+              osc.stop(startTime + speedInSeconds);
+            });
+            
+            setTimeout(() => setIsPlaying(false), notes.length * speed + 100);
+          };
+
+          const playChord = (chordData) => {
+            if (!audioContext) {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              setAudioContext(ctx);
+              playChordWithContext(ctx, chordData);
+            } else {
+              playChordWithContext(audioContext, chordData);
+            }
+          };
+
+          const playChordWithContext = (ctx, chordData) => {
+            setIsPlaying(true);
+            setSelectedChord(chordData);
+            const now = ctx.currentTime;
+            
+            const tuning = getCurrentTuning();
+            const baseMidi = tuning ? tuning[0] : 48;
+            const baseOctave = Math.floor(baseMidi / 12);
+            
+            chordData.notes.forEach((note) => {
+              const noteIndex = NOTE_NAMES.indexOf(note);
+              const midi = (baseOctave + 2) * 12 + noteIndex;
+              const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+              
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(frequency, now);
+              
+              gain.gain.setValueAtTime(0.15, now);
+              gain.gain.exponentialRampToValueAtTime(0.01, now + 2);
+              
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              
+              osc.start(now);
+              osc.stop(now + 2);
+            });
+            
+            setTimeout(() => setIsPlaying(false), 2000);
+          };
+
+          const playProgression = (progression) => {
+            if (isPlaying && selectedProgression?.name === progression.name) {
+              stopProgression();
+              return;
+            }
+            
+            if (!audioContext) {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              setAudioContext(ctx);
+              playProgressionWithContext(ctx, progression);
+            } else {
+              playProgressionWithContext(audioContext, progression);
+            }
+          };
+
+          const stopProgression = () => {
+            setIsPlaying(false);
+            setSelectedProgression(null);
+            if (loopTimeoutId) {
+              clearTimeout(loopTimeoutId);
+              setLoopTimeoutId(null);
+            }
+          };
+
+          const playProgressionWithContext = (ctx, progression) => {
+            setIsPlaying(true);
+            setSelectedProgression(progression);
+            const now = ctx.currentTime;
+            const durationInSeconds = chordDuration / 1000;
+            
+            const tuning = getCurrentTuning();
+            const baseMidi = tuning ? tuning[0] : 48;
+            const baseOctave = Math.floor(baseMidi / 12);
+            
+            progression.degrees.forEach((degree, chordIndex) => {
+              const chord = allChords.find(c => c.degree === degree);
+              if (!chord) return;
+              
+              const startTime = now + (chordIndex * durationInSeconds);
+              
+              if (progressionPlayMode === 'block') {
+                chord.notes.forEach((note) => {
+                  const noteIndex = NOTE_NAMES.indexOf(note);
+                  const midi = (baseOctave + 2) * 12 + noteIndex;
+                  const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+                  
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  
+                  osc.type = 'sine';
+                  osc.frequency.setValueAtTime(frequency, startTime);
+                  
+                  gain.gain.setValueAtTime(0.12, startTime);
+                  gain.gain.exponentialRampToValueAtTime(0.01, startTime + durationInSeconds * 0.9);
+                  
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  
+                  osc.start(startTime);
+                  osc.stop(startTime + durationInSeconds);
+                });
+              } else {
+                const noteDelay = (durationInSeconds * 0.6) / chord.notes.length;
+                chord.notes.forEach((note, noteIndex) => {
+                  const noteStartTime = startTime + (noteIndex * noteDelay);
+                  const noteIndexVal = NOTE_NAMES.indexOf(note);
+                  const midi = (baseOctave + 2) * 12 + noteIndexVal;
+                  const frequency = 440 * Math.pow(2, (midi - 69) / 12);
+                  
+                  const osc = ctx.createOscillator();
+                  const gain = ctx.createGain();
+                  
+                  osc.type = 'sine';
+                  osc.frequency.setValueAtTime(frequency, noteStartTime);
+                  
+                  gain.gain.setValueAtTime(0.15, noteStartTime);
+                  gain.gain.exponentialRampToValueAtTime(0.01, noteStartTime + durationInSeconds * 0.4);
+                  
+                  osc.connect(gain);
+                  gain.connect(ctx.destination);
+                  
+                  osc.start(noteStartTime);
+                  osc.stop(noteStartTime + durationInSeconds * 0.5);
+                });
+              }
+            });
+            
+            const totalDuration = progression.degrees.length * chordDuration;
+            
+            if (isLooping) {
+              const timeoutId = setTimeout(() => {
+                playProgressionWithContext(ctx, progression);
+              }, totalDuration);
+              setLoopTimeoutId(timeoutId);
+            } else {
+              setTimeout(() => {
+                setIsPlaying(false);
+                setSelectedProgression(null);
+              }, totalDuration + 100);
+            }
+          };
+
+          const startEditingProgression = (prog) => {
+            setEditingProgression({
+              ...prog,
+              degrees: [...prog.degrees]
+            });
+          };
+
+          const moveChordLeft = (index) => {
+            if (index === 0) return;
+            const newDegrees = [...editingProgression.degrees];
+            [newDegrees[index - 1], newDegrees[index]] = [newDegrees[index], newDegrees[index - 1]];
+            setEditingProgression({ ...editingProgression, degrees: newDegrees });
+          };
+
+          const moveChordRight = (index) => {
+            if (index === editingProgression.degrees.length - 1) return;
+            const newDegrees = [...editingProgression.degrees];
+            [newDegrees[index], newDegrees[index + 1]] = [newDegrees[index + 1], newDegrees[index]];
+            setEditingProgression({ ...editingProgression, degrees: newDegrees });
+          };
+
+          const removeChord = (index) => {
+            const newDegrees = editingProgression.degrees.filter((_, i) => i !== index);
+            if (newDegrees.length > 0) {
+              setEditingProgression({ ...editingProgression, degrees: newDegrees });
+            }
+          };
+
+          const addChordToProgression = (degree) => {
+            setEditingProgression({
+              ...editingProgression,
+              degrees: [...editingProgression.degrees, degree]
+            });
+          };
+
+          return (
+            <div className="min-h-screen bg-gray-950 text-gray-100 p-6 font-mono">
+              <div className="max-w-7xl mx-auto">
+                <h1 className="text-3xl font-bold mb-6 text-pink-500">Modal Chord & Scale Explorer</h1>
+                
+                <div className="bg-gray-900 p-6 rounded-lg border border-gray-800 mb-6">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => setIsCustomMode(false)}
+                        className={`px-4 py-2 rounded text-base ${!isCustomMode ? 'bg-pink-600' : 'bg-gray-800'}`}
+                      >
+                        Standard Mode
+                      </button>
+                      <button
+                        onClick={() => setIsCustomMode(true)}
+                        className={`px-4 py-2 rounded text-base ${isCustomMode ? 'bg-pink-600' : 'bg-gray-800'}`}
+                      >
+                        Custom Scale
+                      </button>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        onClick={playScale}
+                        disabled={isPlaying || scaleNotes.length === 0}
+                        className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 flex items-center gap-2 text-base whitespace-nowrap"
+                      >
+                        {isPlaying ? <Square size={16} /> : <Play size={16} />}
+                        Play
+                      </button>
+                      <div className="flex items-center gap-2 flex-1">
+                        <label className="text-sm text-purple-400 whitespace-nowrap">Speed:</label>
+                        <input
+                          type="range"
+                          min="100"
+                          max="1000"
+                          step="50"
+                          value={arpeggioSpeed}
+                          onChange={(e) => setArpeggioSpeed(Number(e.target.value))}
+                          className="flex-1 min-w-0"
+                        />
+                        <span className="text-sm text-gray-400 w-12">{arpeggioSpeed}ms</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!isCustomMode ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm mb-2 text-purple-400">Key</label>
+                        <select
+                          value={selectedKey}
+                          onChange={(e) => setSelectedKey(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-base h-10"
+                        >
+                          {KEYS.map(key => (
+                            <option key={key} value={key}>{key}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-2 text-purple-400">Mode</label>
+                        <select
+                          value={selectedMode}
+                          onChange={(e) => setSelectedMode(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-base h-10"
+                        >
+                          {MODES.map(mode => (
+                            <option key={mode} value={mode}>{mode}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm mb-2 text-purple-400">{selectedKey} {selectedMode} Scale</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {scaleNotes.map((note, i) => (
+                            <div key={i} className="bg-purple-700 px-3 py-2 rounded font-bold text-base">
+                              {note}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-2">
+                        <label className="block text-sm mb-2 text-purple-400">
+                          Custom Scale (4-9 notes, comma-separated)
+                        </label>
+                        <input
+                          type="text"
+                          value={customScale}
+                          onChange={(e) => setCustomScale(e.target.value)}
+                          placeholder="C, D, E, G, A"
+                          className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-base h-10"
+                        />
+                      </div>
+                      {scaleNotes.length > 0 && (
+                        <div>
+                          <label className="block text-sm mb-2 text-purple-400">Custom Scale</label>
+                          <div className="flex gap-2 flex-wrap">
+                            {scaleNotes.map((note, i) => (
+                              <div key={i} className="bg-purple-700 px-3 py-2 rounded font-bold text-base">
+                                {note}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-gray-900 p-4 rounded-lg border border-gray-800 mb-6">
+                  <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                    <h2 className="text-lg font-bold text-pink-500">
+                      Instrument Maps
+                      {selectedRootFilter && (
+                        <span className="text-sm text-yellow-400 ml-3">
+                          (Filtering by root: {selectedRootFilter})
+                        </span>
+                      )}
+                    </h2>
+                    <div className="flex gap-4">
+                      {selectedInstrument !== 'Piano' && (
+                        <select
+                          value={selectedTuning}
+                          onChange={(e) => setSelectedTuning(e.target.value)}
+                          className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-base h-10"
+                        >
+                          {Object.keys(getAvailableTunings()).map(tuning => (
+                            <option key={tuning} value={tuning}>{tuning}</option>
+                          ))}
+                        </select>
+                      )}
+                      <select
+                        value={selectedInstrument}
+                        onChange={(e) => handleInstrumentChange(e.target.value)}
+                        className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-base h-10"
+                      >
+                        {Object.keys(INSTRUMENTS).map(inst => (
+                          <option key={inst} value={inst}>{inst}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  
+                  {selectedInstrument === 'Piano' ? (
+                    <>
+                      <h3 className="text-sm font-bold mb-2 text-purple-400">
+                        Piano {selectedChord && `- ${selectedChord.name}`}
+                      </h3>
+                      <PianoRoll 
+                        scaleNotes={scaleNotes} 
+                        selectedChord={selectedChord}
+                        selectedRootFilter={selectedRootFilter}
+                        onNoteClick={handleNoteClick}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-sm font-bold mb-2 text-purple-400">
+                        {selectedInstrument} - {selectedTuning} {selectedChord && `- ${selectedChord.name}`}
+                      </h3>
+                      <Fretboard 
+                        tuning={getCurrentTuning()} 
+                        scaleNotes={scaleNotes}
+                        selectedChord={selectedChord}
+                        selectedRootFilter={selectedRootFilter}
+                        onNoteClick={handleNoteClick}
+                      />
+                    </>
+                  )}
+                  <p className="text-xs text-gray-500 mt-2">
+                    Click any scale note to filter chords by root
+                  </p>
+                </div>
+
+                <div className="grid lg:grid-cols-2 gap-6">
+                  <div className="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                    <div className="flex justify-between items-center mb-3">
+                      <h2 className="text-lg font-bold text-pink-500">
+                        Available Chords
+                        {selectedRootFilter && (
+                          <span className="text-sm text-yellow-400 ml-2">
+                            ({chords.length} with root {selectedRootFilter})
+                          </span>
+                        )}
+                      </h2>
+                      <select
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                        className="bg-gray-800 border border-gray-700 rounded px-3 py-1 text-sm h-8"
+                      >
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+                      {chords.map((chord, i) => (
+                        <div
+                          key={i}
+                          className={`bg-gray-800 p-2 rounded border transition-colors cursor-pointer
+                            ${selectedChord?.name === chord.name ? 'border-pink-500 bg-gray-750' : 'border-gray-700 hover:border-pink-500'}
+                          `}
+                          onClick={() => setSelectedChord(chord)}
+                        >
+                          <div className="flex justify-between items-start mb-1">
+                            <div>
+                              <div className="font-bold text-purple-400 text-sm">{chord.name}</div>
+                              <div className="text-xs text-gray-500">deg {chord.degree}</div>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playChord(chord);
+                              }}
+                              disabled={isPlaying}
+                              className="text-pink-500 hover:text-pink-400 disabled:opacity-50"
+                            >
+                              {isPlaying && selectedChord?.name === chord.name ? 
+                                <Square size={14} /> : <Play size={14} />
+                              }
+                            </button>
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            {chord.notes.join(' ')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {!isCustomMode && progressions.length > 0 && (
+                    <div className="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                      <div className="flex justify-between items-center mb-3">
+                        <h2 className="text-lg font-bold text-pink-500">
+                          Common Progressions
+                        </h2>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setProgressionFilter('curated')}
+                            className={`px-3 py-1 rounded text-sm ${
+                              progressionFilter === 'curated' ? 'bg-pink-600' : 'bg-gray-800'
+                            }`}
+                          >
+                            Curated ({curatedProgressions.length})
+                          </button>
+                          <button
+                            onClick={() => setProgressionFilter('all')}
+                            className={`px-3 py-1 rounded text-sm ${
+                              progressionFilter === 'all' ? 'bg-pink-600' : 'bg-gray-800'
+                            }`}
+                          >
+                            All ({allProgressions.length})
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+                        {progressions.map((prog, i) => (
+                          <div 
+                            key={i} 
+                            className={`p-3 rounded border cursor-pointer ${
+                              prog.curated 
+                                ? 'bg-gray-800 border-gray-700' 
+                                : 'bg-gray-850 border-gray-600'
+                            } ${
+                              editingProgression?.name === prog.name && 
+                              editingProgression?.style === prog.style
+                                ? 'ring-2 ring-pink-500'
+                                : 'hover:border-pink-500'
+                            }`}
+                            onClick={() => startEditingProgression(prog)}
+                          >
+                            <div className="flex items-start justify-between mb-1">
+                              <div className="font-bold text-purple-400 text-sm">{prog.name}</div>
+                              <div className="flex gap-1">
+                                {prog.curated && (
+                                  <span className="text-xs bg-pink-900 text-pink-300 px-1.5 py-0.5 rounded">
+                                    ★
+                                  </span>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    playProgression(prog);
+                                  }}
+                                  className="text-purple-500 hover:text-purple-400 disabled:opacity-50"
+                                >
+                                  {isPlaying && selectedProgression?.name === prog.name && 
+                                   selectedProgression?.style === prog.style ? 
+                                    <Square size={14} /> : <Play size={14} />
+                                  }
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-500 italic mb-2">{prog.style}</div>
+                            <div className="text-xs text-gray-400">
+                              {prog.degrees.map(deg => {
+                                const chord = allChords.find(c => c.degree === deg);
+                                return chord ? chord.name : `${deg}`;
+                              }).join(' → ')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {editingProgression && !isCustomMode && (
+                  <div className="bg-gray-900 p-4 rounded-lg border border-gray-800 mt-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h2 className="text-lg font-bold text-pink-500 mb-1">
+                          Editing: {editingProgression.name}
+                        </h2>
+                        <p className="text-sm text-gray-400">{editingProgression.style}</p>
+                      </div>
+                      <button
+                        onClick={() => setEditingProgression(null)}
+                        className="text-gray-500 hover:text-gray-300"
+                      >
+                        Close
+                      </button>
+                    </div>
+
+                    <div className="bg-gray-800 p-3 rounded border border-gray-700 mb-4">
+                      <div className="flex gap-4 items-center flex-wrap">
+                        <button
+                          onClick={() => playProgression(editingProgression)}
+                          className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500 disabled:opacity-50 flex items-center gap-2 text-base"
+                        >
+                          {isPlaying && selectedProgression?.name === editingProgression.name ? 
+                            <Square size={16} /> : <Play size={16} />
+                          }
+                          {isPlaying && selectedProgression?.name === editingProgression.name ? 'Stop' : 'Play'}
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <label className="text-sm text-purple-400">Mode:</label>
+                          <button
+                            onClick={() => setProgressionPlayMode('block')}
+                            className={`px-3 py-1 rounded text-sm ${
+                              progressionPlayMode === 'block' ? 'bg-pink-600' : 'bg-gray-700'
+                            }`}
+                          >
+                            Block
+                          </button>
+                          <button
+                            onClick={() => setProgressionPlayMode('arpeggio')}
+                            className={`px-3 py-1 rounded text-sm ${
+                              progressionPlayMode === 'arpeggio' ? 'bg-pink-600' : 'bg-gray-700'
+                            }`}
+                          >
+                            Arpeggio
+                          </button>
+                          <button
+                            onClick={() => {
+                              const newLoopState = !isLooping;
+                              setIsLooping(newLoopState);
+                              if (!newLoopState && isPlaying && loopTimeoutId) {
+                                clearTimeout(loopTimeoutId);
+                                setLoopTimeoutId(null);
+                              }
+                            }}
+                            className={`px-3 py-1 rounded text-sm ${
+                              isLooping ? 'bg-pink-600' : 'bg-gray-700'
+                            }`}
+                          >
+                            Loop
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <label className="text-sm text-purple-400 whitespace-nowrap">Duration:</label>
+                          <input
+                            type="range"
+                            min="200"
+                            max="3000"
+                            step="100"
+                            value={chordDuration}
+                            onChange={(e) => setChordDuration(Number(e.target.value))}
+                            className="flex-1"
+                          />
+                          <span className="text-sm text-gray-400 w-16">{chordDuration}ms</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 p-3 rounded border border-gray-700 mb-4">
+                      <h3 className="text-sm font-bold mb-2 text-purple-400">Chord Sequence</h3>
+                      <div className="flex gap-2 flex-wrap">
+                        {editingProgression.degrees.map((degree, index) => {
+                          const chord = allChords.find(c => c.degree === degree);
+                          return (
+                            <div key={index} className="bg-gray-700 rounded p-2 flex items-center gap-2">
+                              <button
+                                onClick={() => moveChordLeft(index)}
+                                disabled={index === 0}
+                                className="text-purple-400 hover:text-purple-300 disabled:opacity-30"
+                              >
+                                ←
+                              </button>
+                              <div className="text-center">
+                                <div className="font-bold text-purple-400 text-sm">
+                                  {chord ? chord.name : degree}
+                                </div>
+                                <div className="text-xs text-gray-500">deg {degree}</div>
+                              </div>
+                              <button
+                                onClick={() => moveChordRight(index)}
+                                disabled={index === editingProgression.degrees.length - 1}
+                                className="text-purple-400 hover:text-purple-300 disabled:opacity-30"
+                              >
+                                →
+                              </button>
+                              <button
+                                onClick={() => removeChord(index)}
+                                className="text-red-400 hover:text-red-300 text-xs"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 p-3 rounded border border-gray-700">
+                      <h3 className="text-sm font-bold mb-2 text-purple-400">Add Chord</h3>
+                      <div className="grid grid-cols-7 gap-2">
+                        {scaleNotes.map((note, index) => {
+                          const degree = index + 1;
+                          const chord = allChords.find(c => c.degree === degree);
+                          return chord ? (
+                            <button
+                              key={degree}
+                              onClick={() => addChordToProgression(degree)}
+                              className="bg-gray-700 hover:bg-purple-700 px-3 py-2 rounded text-sm"
+                            >
+                              <div className="font-bold text-purple-400">{chord.name}</div>
+                              <div className="text-xs text-gray-500">deg {degree}</div>
+                            </button>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-4 text-sm mt-6">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-pink-600 rounded"></div>
+                    <span>Root (in chord)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-purple-600 rounded"></div>
+                    <span>Chord tone</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-purple-900 rounded"></div>
+                    <span>Scale tone (not in chord)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-purple-700 rounded ring-2 ring-yellow-400"></div>
+                    <span>Selected root filter</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.render(<ModalChordExplorer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
